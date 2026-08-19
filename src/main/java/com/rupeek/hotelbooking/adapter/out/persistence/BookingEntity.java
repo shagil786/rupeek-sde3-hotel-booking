@@ -18,6 +18,7 @@ public class BookingEntity {
     private BigDecimal amount;
     @Enumerated(EnumType.STRING) private BookingStatus status;
     private String idempotencyKey;
+    private String cancellationIdempotencyKey;
     @Version private long version;
     private Instant createdAt;
 
@@ -29,4 +30,5 @@ public class BookingEntity {
     public LocalDate getCheckIn(){return checkIn;} public LocalDate getCheckOut(){return checkOut;} public int getGuests(){return guests;}
     public BigDecimal getAmount(){return amount;} public BookingStatus getStatus(){return status;} public void setStatus(BookingStatus s){status=s;}
     public String getIdempotencyKey(){return idempotencyKey;}
+    public String getCancellationIdempotencyKey(){return cancellationIdempotencyKey;} public void setCancellationIdempotencyKey(String key){cancellationIdempotencyKey=key;}
 }

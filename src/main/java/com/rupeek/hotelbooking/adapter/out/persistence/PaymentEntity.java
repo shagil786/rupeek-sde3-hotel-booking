@@ -14,7 +14,8 @@ public class PaymentEntity {
     private BigDecimal amount;
     @Enumerated(EnumType.STRING) private PaymentStatus status;
     private Instant createdAt;
+    private String idempotencyKey;
     protected PaymentEntity() {}
-    public PaymentEntity(String id, BookingEntity booking, String method, BigDecimal amount, PaymentStatus status) { this.id=id; this.booking=booking; this.method=method; this.amount=amount; this.status=status; this.createdAt=Instant.now(); }
+    public PaymentEntity(String id, BookingEntity booking, String method, BigDecimal amount, PaymentStatus status, String idempotencyKey) { this.id=id; this.booking=booking; this.method=method; this.amount=amount; this.status=status; this.idempotencyKey=idempotencyKey; this.createdAt=Instant.now(); }
     public PaymentStatus getStatus(){return status;} public void setStatus(PaymentStatus status){this.status=status;}
 }

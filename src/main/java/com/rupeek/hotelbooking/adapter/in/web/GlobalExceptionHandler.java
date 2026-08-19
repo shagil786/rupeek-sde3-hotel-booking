@@ -5,6 +5,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import java.util.HashMap;
 
@@ -18,4 +19,6 @@ public class GlobalExceptionHandler {
     ProblemDetail optimistic() { return api(ApiException.conflict("OPTIMISTIC_LOCK_CONFLICT","The resource changed; retry the request.")); }
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ProblemDetail malformed(HttpMessageNotReadableException e) { return api(ApiException.badRequest("MALFORMED_REQUEST","Request body is malformed or contains invalid field types.")); }
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    ProblemDetail missingHeader(MissingRequestHeaderException e) { return api(ApiException.badRequest("IDEMPOTENCY_KEY_REQUIRED","Idempotency-Key is required.")); }
 }
