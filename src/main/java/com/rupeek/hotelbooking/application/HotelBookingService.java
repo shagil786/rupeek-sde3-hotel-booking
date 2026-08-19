@@ -5,6 +5,7 @@ import com.rupeek.hotelbooking.adapter.in.web.HotelDtos;
 import com.rupeek.hotelbooking.adapter.out.persistence.*;
 import com.rupeek.hotelbooking.domain.*;
 import jakarta.transaction.Transactional;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -97,6 +98,19 @@ public class HotelBookingService {
     @Transactional
     public HotelDtos.BookingResponse getBooking(String bookingId,String actor) { BookingEntity b=findBooking(bookingId); requireCustomer(b,actor); return toResponse(b); }
 
+    @Transactional
+    public int expireAbandonedBookings(java.time.Instant now, long holdMinutes) {
+        var expired = bookings.findByStatusAndCreatedAtBefore(BookingStatus.PENDING_PAYMENT, now.minus(holdMinutes, ChronoUnit.MINUTES));
+        expired.forEach(b -> { b.setStatus(BookingStatus.EXPIRED); bookings.save(b); });
+        return expired.size();
+    }
+
+    @Scheduled(fixedDelayString = "${app.booking.expiration-check-ms:60000}")
+    @Transactional
+    public void expireAbandonedBookings() {
+        expireAbandonedBookings(java.time.Instant.now(), holdMinutes);
+    }
+
     private HotelDtos.RoomAvailability toAvailability(RoomTypeEntity room,LocalDate in,LocalDate out){
         if(in==null||out==null) return new HotelDtos.RoomAvailability(room.getId(),room.getProperty().getId(),room.getProperty().getName(),room.getName(),room.getPricePerNight(),room.getCapacity(),room.getInventoryCount());
         int used=bookings.findByRoomTypeIdAndStatusInAndCheckInLessThanAndCheckOutGreaterThan(room.getId(),List.of(BookingStatus.PENDING_PAYMENT,BookingStatus.CONFIRMED),out,in).size();
@@ -113,6 +127,8 @@ public class HotelBookingService {
     private void requireCustomer(BookingEntity booking,String actor){if(!booking.getCustomerUsername().equals(actor))throw ApiException.forbidden("BOOKING_OWNER_REQUIRED","Only the booking owner can access it.");}
     private void requireKey(String key){if(key==null||key.isBlank())throw ApiException.badRequest("IDEMPOTENCY_KEY_REQUIRED","Idempotency-Key is required.");}
     private void validatePage(int page,int size){if(page<0||size<1||size>100)throw ApiException.badRequest("INVALID_PAGINATION","page must be non-negative and size must be between 1 and 100.");}
+    @org.springframework.beans.factory.annotation.Value("${app.booking.hold-minutes:15}")
+    private long holdMinutes;
     public record SearchPage<T>(List<T> items,int total) {}
     private HotelDtos.BookingResponse toResponse(BookingEntity b){return new HotelDtos.BookingResponse(b.getId(),b.getRoomType().getId(),b.getCustomerUsername(),b.getCheckIn(),b.getCheckOut(),b.getGuests(),b.getAmount(),b.getStatus().name());}
 }

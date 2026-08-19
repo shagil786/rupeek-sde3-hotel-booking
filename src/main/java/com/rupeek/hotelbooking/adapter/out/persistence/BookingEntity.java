@@ -31,4 +31,5 @@ public class BookingEntity {
     public BigDecimal getAmount(){return amount;} public BookingStatus getStatus(){return status;} public void setStatus(BookingStatus s){status=s;}
     public String getIdempotencyKey(){return idempotencyKey;}
     public String getCancellationIdempotencyKey(){return cancellationIdempotencyKey;} public void setCancellationIdempotencyKey(String key){cancellationIdempotencyKey=key;}
+    public Instant getCreatedAt(){return createdAt;}
 }
