@@ -1,0 +1,26 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/hotel-booking;DB_CLOSE_DELAY=-1;AUTO_SERVER=TRUE
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  h2:
+    console:
+      enabled: false
+
+app:
+  demo:
+    username: ${APP_DEMO_USERNAME}
+    password: ${APP_DEMO_PASSWORD}
+  booking:
+    hold-minutes: 15
+
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
