@@ -13,7 +13,7 @@ The service will expose hotel discovery, property onboarding, booking, payment, 
 - `adapter`: in-memory repositories, payment adapter, and REST controllers
 - `common`: validation and error handling
 
-The initial implementation will use in-memory persistence behind repository interfaces, as allowed by the brief.
+The runnable implementation uses JPA entities with Flyway-managed H2 persistence. Repository interfaces keep the application layer independent of the database adapter; unit-level policy tests and H2 integration tests provide fast verification.
 
 ## Requirements source
 

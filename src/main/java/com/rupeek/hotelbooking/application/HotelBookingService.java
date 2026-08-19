@@ -75,23 +75,23 @@ public class HotelBookingService {
 
     @Transactional
     public HotelDtos.BookingResponse pay(String bookingId, HotelDtos.PaymentRequest request, String actor, String idempotencyKey) {
-        requireKey(idempotencyKey); BookingEntity booking=findBooking(bookingId); requireCustomer(booking,actor);
+        requireKey(idempotencyKey); BookingEntity booking=findBookingForUpdate(bookingId); requireCustomer(booking,actor);
         if(payments.findByBookingIdAndIdempotencyKey(bookingId,idempotencyKey).isPresent()) return toResponse(booking);
         if(booking.getStatus()==BookingStatus.CONFIRMED) return toResponse(booking);
         if(booking.getStatus()!=BookingStatus.PENDING_PAYMENT) throw ApiException.conflict("INVALID_BOOKING_STATE","Only pending bookings can be paid.");
         if(!available(booking.getRoomType(),booking.getCheckIn(),booking.getCheckOut(),booking.getId())) throw ApiException.conflict("ROOM_UNAVAILABLE","The room inventory is no longer available.");
-        var result=paymentProvider.charge(bookingId,booking.getAmount(),request.method());
+        var result=paymentProvider.charge(bookingId,booking.getAmount(),request.method(),idempotencyKey);
         payments.save(new PaymentEntity(UUID.randomUUID().toString(),booking,request.method(),booking.getAmount(),result.successful()?PaymentStatus.SUCCEEDED:PaymentStatus.FAILED,idempotencyKey));
         booking.setStatus(result.successful()?BookingStatus.CONFIRMED:BookingStatus.PAYMENT_FAILED); bookings.save(booking); return toResponse(booking);
     }
 
     @Transactional
     public void cancel(String bookingId, String actor, String idempotencyKey) {
-        requireKey(idempotencyKey); BookingEntity booking=findBooking(bookingId); requireCustomer(booking,actor);
+        requireKey(idempotencyKey); BookingEntity booking=findBookingForUpdate(bookingId); requireCustomer(booking,actor);
         if(idempotencyKey.equals(booking.getCancellationIdempotencyKey())||booking.getStatus()==BookingStatus.CANCELLED) return;
         if(booking.getStatus()!=BookingStatus.CONFIRMED) throw ApiException.conflict("INVALID_BOOKING_STATE","Only confirmed bookings can be cancelled.");
         BigDecimal refund=cancellationPolicy.refundAmount(booking.getAmount(),booking.getCheckIn(),LocalDate.now());
-        if(refund.signum()>0) paymentProvider.refund(bookingId,refund);
+        if(refund.signum()>0) paymentProvider.refund(bookingId,refund,idempotencyKey);
         booking.setStatus(BookingStatus.CANCELLED); booking.setCancellationIdempotencyKey(idempotencyKey); bookings.save(booking);
     }
 
@@ -123,6 +123,7 @@ public class HotelBookingService {
     private void validateDates(LocalDate in,LocalDate out){if(in==null||out==null||!out.isAfter(in))throw ApiException.badRequest("INVALID_DATE_RANGE","Check-out must be after check-in.");}
     private void validateOptionalDates(LocalDate in,LocalDate out){if((in==null)!=(out==null))throw ApiException.badRequest("INVALID_DATE_RANGE","Check-in and check-out must be provided together.");if(in!=null)validateDates(in,out);}
     private BookingEntity findBooking(String id){return bookings.findById(id).orElseThrow(()->ApiException.notFound("BOOKING_NOT_FOUND","Booking not found."));}
+    private BookingEntity findBookingForUpdate(String id){return bookings.findByIdForUpdate(id).orElseThrow(()->ApiException.notFound("BOOKING_NOT_FOUND","Booking not found."));}
     private void requireOwner(OwnerEntity owner,String actor){if(!owner.getUsername().equals(actor))throw ApiException.forbidden("OWNER_REQUIRED","Only the owner can modify this resource.");}
     private void requireCustomer(BookingEntity booking,String actor){if(!booking.getCustomerUsername().equals(actor))throw ApiException.forbidden("BOOKING_OWNER_REQUIRED","Only the booking owner can access it.");}
     private void requireKey(String key){if(key==null||key.isBlank())throw ApiException.badRequest("IDEMPOTENCY_KEY_REQUIRED","Idempotency-Key is required.");}
