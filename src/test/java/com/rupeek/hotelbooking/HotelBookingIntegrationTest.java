@@ -49,4 +49,16 @@ class HotelBookingIntegrationTest {
         mvc.perform(post("/api/v1/bookings").with(httpBasic("demo","test-only-password")).header("Idempotency-Key","invalid").contentType(MediaType.APPLICATION_JSON).content("{\"roomTypeId\":\"missing\",\"checkIn\":\"2030-01-12\",\"checkOut\":\"2030-01-10\",\"guests\":0}"))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test void supportsDiscoveryWithoutDates() throws Exception {
+        mvc.perform(get("/api/v1/properties?city=Bengaluru").with(httpBasic("demo", "test-only-password")))
+                .andExpect(status().isOk());
+    }
+
+    @Test void rejectsRoomTypeWithoutPriceAsValidationError() throws Exception {
+        mvc.perform(post("/api/v1/properties/missing/room-types").with(httpBasic("demo", "test-only-password"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Deluxe\",\"capacity\":2,\"inventoryCount\":1}"))
+                .andExpect(status().isBadRequest());
+    }
 }

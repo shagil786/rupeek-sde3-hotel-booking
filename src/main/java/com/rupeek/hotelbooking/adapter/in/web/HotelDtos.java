@@ -9,7 +9,7 @@ public final class HotelDtos {
     private HotelDtos() {}
     public record CreateOwnerRequest(@NotBlank @Size(max=120) String username) {}
     public record CreatePropertyRequest(@NotBlank @Size(max=200) String name, @NotBlank @Size(max=100) String city, @NotBlank @Size(max=150) String locality, @Min(1) @Max(5) int starRating, List<@NotBlank String> amenities) {}
-    public record CreateRoomTypeRequest(@NotBlank @Size(max=120) String name, @Min(1) int capacity, @DecimalMin("0.01") BigDecimal pricePerNight, @Min(1) int inventoryCount) {}
+    public record CreateRoomTypeRequest(@NotBlank @Size(max=120) String name, @Min(1) int capacity, @NotNull @DecimalMin("0.01") BigDecimal pricePerNight, @Min(1) int inventoryCount) {}
     public record CreateBookingRequest(@NotBlank String roomTypeId, @NotNull @FutureOrPresent LocalDate checkIn, @NotNull LocalDate checkOut, @Min(1) int guests) {}
     public record PaymentRequest(@NotBlank String method) {}
     public record ResourceResponse(String id) {}

@@ -48,7 +48,7 @@ public class HotelBookingService {
 
     @Transactional
     public List<HotelDtos.PropertySearchResponse> search(String city, String locality, LocalDate checkIn, LocalDate checkOut, Integer guests, BigDecimal minPrice, BigDecimal maxPrice, Integer stars, String amenities) {
-        validateDates(checkIn,checkOut);
+        validateOptionalDates(checkIn,checkOut);
         return properties.findAll().stream().filter(p->city==null||p.getCity().equalsIgnoreCase(city)).filter(p->locality==null||p.getLocality().equalsIgnoreCase(locality)).filter(p->stars==null||p.getStarRating()>=stars).filter(p->hasAmenities(p,amenities)).map(p->{
             List<HotelDtos.RoomAvailability> available=rooms.findByPropertyId(p.getId()).stream().filter(r->guests==null||r.getCapacity()>=guests).filter(r->minPrice==null||r.getPricePerNight().compareTo(minPrice)>=0).filter(r->maxPrice==null||r.getPricePerNight().compareTo(maxPrice)<=0).map(r->toAvailability(r,checkIn,checkOut)).filter(Objects::nonNull).toList();
             return available.isEmpty()?null:new HotelDtos.PropertySearchResponse(p.getId(),p.getName(),p.getCity(),p.getLocality(),p.getStarRating(),split(p.getAmenities()),available);
@@ -104,6 +104,7 @@ public class HotelBookingService {
     private boolean hasAmenities(PropertyEntity p,String requested){if(requested==null||requested.isBlank())return true; Set<String> have=new HashSet<>(split(p.getAmenities())); return Arrays.stream(requested.split(",")).map(String::trim).allMatch(have::contains);}
     private List<String> split(String s){return s==null||s.isBlank()?List.of():Arrays.stream(s.split(",")).map(String::trim).filter(x->!x.isBlank()).toList();}
     private void validateDates(LocalDate in,LocalDate out){if(in==null||out==null||!out.isAfter(in))throw ApiException.badRequest("INVALID_DATE_RANGE","Check-out must be after check-in.");}
+    private void validateOptionalDates(LocalDate in,LocalDate out){if((in==null)!=(out==null))throw ApiException.badRequest("INVALID_DATE_RANGE","Check-in and check-out must be provided together.");if(in!=null)validateDates(in,out);}
     private BookingEntity findBooking(String id){return bookings.findById(id).orElseThrow(()->ApiException.notFound("BOOKING_NOT_FOUND","Booking not found."));}
     private void requireOwner(OwnerEntity owner,String actor){if(!owner.getUsername().equals(actor))throw ApiException.forbidden("OWNER_REQUIRED","Only the owner can modify this resource.");}
     private void requireCustomer(BookingEntity booking,String actor){if(!booking.getCustomerUsername().equals(actor))throw ApiException.forbidden("BOOKING_OWNER_REQUIRED","Only the booking owner can access it.");}
