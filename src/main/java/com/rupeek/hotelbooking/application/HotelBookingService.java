@@ -16,11 +16,11 @@ import java.util.*;
 @Service
 public class HotelBookingService {
     private final OwnerJpaRepository owners; private final PropertyJpaRepository properties; private final RoomTypeJpaRepository rooms;
-    private final BookingJpaRepository bookings; private final PaymentJpaRepository payments; private final PaymentProvider paymentProvider;
+    private final BookingJpaRepository bookings; private final PaymentJpaRepository payments; private final PaymentProvider paymentProvider; private final PricingStrategy pricingStrategy;
     private final CancellationPolicy cancellationPolicy = new FullRefundBeforeStartPolicy();
 
-    public HotelBookingService(OwnerJpaRepository owners, PropertyJpaRepository properties, RoomTypeJpaRepository rooms, BookingJpaRepository bookings, PaymentJpaRepository payments, PaymentProvider paymentProvider) {
-        this.owners=owners; this.properties=properties; this.rooms=rooms; this.bookings=bookings; this.payments=payments; this.paymentProvider=paymentProvider;
+    public HotelBookingService(OwnerJpaRepository owners, PropertyJpaRepository properties, RoomTypeJpaRepository rooms, BookingJpaRepository bookings, PaymentJpaRepository payments, PaymentProvider paymentProvider, PricingStrategy pricingStrategy) {
+        this.owners=owners; this.properties=properties; this.rooms=rooms; this.bookings=bookings; this.payments=payments; this.paymentProvider=paymentProvider; this.pricingStrategy=pricingStrategy;
     }
 
     @Transactional
@@ -63,13 +63,15 @@ public class HotelBookingService {
         if (idempotencyKey==null||idempotencyKey.isBlank()) throw ApiException.badRequest("IDEMPOTENCY_KEY_REQUIRED","Idempotency-Key is required.");
         var previous=bookings.findByCustomerUsernameAndIdempotencyKey(actor,idempotencyKey); if(previous.isPresent()) return toResponse(previous.get());
         validateDates(request.checkIn(),request.checkOut());
-        RoomTypeEntity room=rooms.findById(request.roomTypeId()).orElseThrow(()->ApiException.notFound("ROOM_TYPE_NOT_FOUND","Room type not found."));
+        RoomTypeEntity room=rooms.findByIdForUpdate(request.roomTypeId()).orElseThrow(()->ApiException.notFound("ROOM_TYPE_NOT_FOUND","Room type not found."));
         if(room.getCapacity()<request.guests()) throw ApiException.badRequest("GUEST_CAPACITY_EXCEEDED","Room capacity is too small.");
         if(!available(room,request.checkIn(),request.checkOut())) throw ApiException.conflict("ROOM_UNAVAILABLE","The room inventory is unavailable for those dates.");
         long nights=ChronoUnit.DAYS.between(request.checkIn(),request.checkOut());
         room.markBookingMutation();
         rooms.save(room);
-        BookingEntity booking=bookings.save(new BookingEntity(UUID.randomUUID().toString(),room,actor,request.checkIn(),request.checkOut(),request.guests(),room.getPricePerNight().multiply(BigDecimal.valueOf(nights)),idempotencyKey));
+        long overlapping=overlappingBookings(room,request.checkIn(),request.checkOut(),null);
+        BigDecimal amount=pricingStrategy.total(room.getPricePerNight(),nights,room.getInventoryCount(),overlapping);
+        BookingEntity booking=bookings.save(new BookingEntity(UUID.randomUUID().toString(),room,actor,request.checkIn(),request.checkOut(),request.guests(),amount,idempotencyKey));
         return toResponse(booking);
     }
 
@@ -117,7 +119,8 @@ public class HotelBookingService {
         return used>=room.getInventoryCount()?null:new HotelDtos.RoomAvailability(room.getId(),room.getProperty().getId(),room.getProperty().getName(),room.getName(),room.getPricePerNight(),room.getCapacity(),room.getInventoryCount()-used);
     }
     private boolean available(RoomTypeEntity r,LocalDate in,LocalDate out){return available(r,in,out,null);}
-    private boolean available(RoomTypeEntity r,LocalDate in,LocalDate out,String excluding){int used=bookings.findByRoomTypeIdAndStatusInAndCheckInLessThanAndCheckOutGreaterThan(r.getId(),List.of(BookingStatus.PENDING_PAYMENT,BookingStatus.CONFIRMED),out,in).stream().filter(b->!Objects.equals(b.getId(),excluding)).toList().size(); return used<r.getInventoryCount();}
+    private boolean available(RoomTypeEntity r,LocalDate in,LocalDate out,String excluding){return overlappingBookings(r,in,out,excluding)<r.getInventoryCount();}
+    private long overlappingBookings(RoomTypeEntity r,LocalDate in,LocalDate out,String excluding){return bookings.findByRoomTypeIdAndStatusInAndCheckInLessThanAndCheckOutGreaterThan(r.getId(),List.of(BookingStatus.PENDING_PAYMENT,BookingStatus.CONFIRMED),out,in).stream().filter(b->!Objects.equals(b.getId(),excluding)).count();}
     private boolean hasAmenities(PropertyEntity p,String requested){if(requested==null||requested.isBlank())return true; Set<String> have=new HashSet<>(split(p.getAmenities())); return Arrays.stream(requested.split(",")).map(String::trim).allMatch(have::contains);}
     private List<String> split(String s){return s==null||s.isBlank()?List.of():Arrays.stream(s.split(",")).map(String::trim).filter(x->!x.isBlank()).toList();}
     private void validateDates(LocalDate in,LocalDate out){if(in==null||out==null||!out.isAfter(in))throw ApiException.badRequest("INVALID_DATE_RANGE","Check-out must be after check-in.");}

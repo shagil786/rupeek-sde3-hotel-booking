@@ -24,6 +24,8 @@ app:
     password: ${APP_DEMO_PASSWORD}
   booking:
     hold-minutes: 15
+  pricing:
+    strategy: ${APP_PRICING_STRATEGY:static}
 
 server:
   error:

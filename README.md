@@ -10,7 +10,7 @@ The service will expose hotel discovery, property onboarding, booking, payment, 
 
 - `domain`: entities, value objects, policies, and state transitions
 - `application`: use-case services and ports
-- `adapter`: in-memory repositories, payment adapter, and REST controllers
+- `adapter`: JPA/H2 repositories, payment adapter, and REST controllers
 - `common`: validation and error handling
 
 The runnable implementation uses JPA entities with Flyway-managed H2 persistence. Repository interfaces keep the application layer independent of the database adapter; unit-level policy tests and H2 integration tests provide fast verification.
@@ -26,6 +26,8 @@ Requires Java 17+ and Maven. The application uses H2 with Flyway migrations by d
 ```bash
 export APP_DEMO_USERNAME=demo
 export APP_DEMO_PASSWORD='replace-with-a-local-password'
+# Optional: use demand-based pricing instead of the default static strategy.
+export APP_PRICING_STRATEGY=dynamic
 ```
 
 Run with:
@@ -46,6 +48,9 @@ The REST API is versioned under `/api/v1` and uses HTTP Basic authentication. Th
 
 - Booking creation creates a `PENDING_PAYMENT` hold; successful payment confirms it.
 - Overlapping inventory is rejected with `409 Conflict`.
+- Room-type pessimistic locking plus an integration race test protect simultaneous reservations.
 - Cancellation refunds the full amount before check-in and releases the booking.
+- `PricingStrategy` is injectable; `static` is the default and `dynamic` applies a capped utilization markup.
 - JPA entities are persisted through Flyway-managed H2 tables; repository interfaces are the replacement seam for PostgreSQL.
-- `Idempotency-Key` is required for booking, payment, and cancellation mutations.
+- `Idempotency-Key` is required for booking, payment, and cancellation mutations; payment provider calls are keyed and replay-safe.
+- The versioned OpenAPI contract is available at [`docs/openapi.yaml`](docs/openapi.yaml).
